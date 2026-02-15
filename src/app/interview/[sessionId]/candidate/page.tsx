@@ -1,11 +1,12 @@
 'use client';
 
-import { useEffect, useState, useCallback, useRef } from 'react';
+import { useEffect, useState, useCallback } from 'react';
 import { useParams } from 'next/navigation';
 import dynamic from 'next/dynamic';
-import { Clock, ChevronDown, ChevronUp, Loader2, FolderOpen, X, Save, RotateCw } from 'lucide-react';
+import { Clock, ChevronDown, ChevronUp, Loader2, FolderOpen, X, Save, RotateCw, Square } from 'lucide-react';
 import { createClient } from '@/lib/supabase/client';
 import { cn } from '@/lib/utils';
+import CodeEditor from '@/components/editor/CodeEditor';
 
 const Terminal = dynamic(() => import('@/components/terminal/Terminal'), { ssr: false });
 
@@ -27,7 +28,6 @@ export default function CandidatePage() {
   const [saving, setSaving] = useState(false);
   const [dirty, setDirty] = useState(false);
   const [fileListLoading, setFileListLoading] = useState(false);
-  const editorRef = useRef<HTMLTextAreaElement>(null);
 
   // Fetch file list from live sandbox
   const fetchFileList = useCallback(async () => {
@@ -366,14 +366,13 @@ export default function CandidatePage() {
                 <Loader2 className="w-4 h-4 animate-spin mr-1.5" /> Loading file...
               </div>
             ) : (
-              <textarea
-                ref={editorRef}
-                value={editedContent}
-                onChange={(e) => handleEditorChange(e.target.value)}
-                spellCheck={false}
-                className="flex-1 w-full p-3 text-xs font-mono text-[#d4d4d8] bg-transparent resize-none outline-none leading-relaxed"
-                style={{ tabSize: 2 }}
-              />
+              <div className="flex-1 min-h-0">
+                <CodeEditor
+                  path={selectedFile!}
+                  content={editedContent}
+                  onChange={handleEditorChange}
+                />
+              </div>
             )}
 
             {/* Editor footer */}
@@ -401,11 +400,11 @@ export default function CandidatePage() {
       {sessionEnded && (
         <div className="absolute inset-0 z-50 bg-[#09090b]/90 flex items-center justify-center">
           <div className="text-center">
-            <div className="w-16 h-16 rounded-full bg-[#34d399]/20 flex items-center justify-center mx-auto mb-4">
-              <span className="text-[#34d399] text-2xl">&#10003;</span>
+            <div className="w-16 h-16 rounded-full bg-[#3b82f6]/20 flex items-center justify-center mx-auto mb-4">
+              <Square className="w-7 h-7 text-[#3b82f6]" />
             </div>
-            <h2 className="text-xl font-semibold text-[#fafafa] mb-2">Session Complete</h2>
-            <p className="text-[#a1a1aa] text-sm">Thank you for completing the interview. You may close this page.</p>
+            <h2 className="text-xl font-semibold text-[#fafafa] mb-2">Interview Ended</h2>
+            <p className="text-[#a1a1aa] text-sm max-w-md">This interview session was ended by the interviewer. If you believe this is an error, please contact them.</p>
           </div>
         </div>
       )}

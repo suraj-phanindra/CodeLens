@@ -26,7 +26,9 @@ export function useSessionInsights(sessionId: string) {
         schema: 'public',
         table: 'insights',
         filter: `session_id=eq.${sessionId}`,
-      }, (payload) => setInsights(prev => [...prev, payload.new]))
+      }, (payload) => setInsights(prev =>
+        prev.some(i => i.id === payload.new.id) ? prev : [...prev, payload.new]
+      ))
       .subscribe();
 
     // Subscribe to new events
@@ -36,7 +38,9 @@ export function useSessionInsights(sessionId: string) {
         schema: 'public',
         table: 'events',
         filter: `session_id=eq.${sessionId}`,
-      }, (payload) => setEvents(prev => [...prev.slice(-199), payload.new]))
+      }, (payload) => setEvents(prev =>
+        prev.some(e => e.id === payload.new.id) ? prev : [...prev.slice(-199), payload.new]
+      ))
       .subscribe();
 
     return () => {

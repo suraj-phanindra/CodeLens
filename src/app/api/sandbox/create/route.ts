@@ -1,16 +1,51 @@
+import { Sandbox } from 'e2b';
 import { supabaseAdmin } from '@/lib/supabase/server';
 import { createInterviewSandbox } from '@/lib/e2b/sandbox';
 import { startActivityCapture } from '@/lib/e2b/monitor';
 
-// Store active sandboxes
 const activeSandboxes = new Map<string, any>();
+
+async function reconnectSandbox(sessionId: string): Promise<any | null> {
+  const supabase = supabaseAdmin();
+  const { data: session } = await supabase
+    .from('sessions')
+    .select('sandbox_id, status')
+    .eq('id', sessionId)
+    .single();
+
+  if (!session?.sandbox_id || session.status === 'completed') return null;
+
+  try {
+    const sandbox = await Sandbox.connect(session.sandbox_id);
+    const capture = await startActivityCapture(sandbox, sessionId);
+    const info = { sandbox, capture };
+    activeSandboxes.set(sessionId, info);
+    return info;
+  } catch {
+    return null;
+  }
+}
+
+export function invalidateSandbox(sessionId: string) {
+  activeSandboxes.delete(sessionId);
+}
+
+export async function getOrReconnectSandbox(sessionId: string): Promise<any | null> {
+  const existing = activeSandboxes.get(sessionId);
+  if (existing?.capture?.pty) return existing;
+  return reconnectSandbox(sessionId);
+}
+
+export async function forceReconnectSandbox(sessionId: string): Promise<any | null> {
+  activeSandboxes.delete(sessionId);
+  return reconnectSandbox(sessionId);
+}
 
 export async function POST(req: Request) {
   try {
     const { session_id } = await req.json();
     const supabase = supabaseAdmin();
 
-    // Get session with challenge
     const { data: session, error: sessionError } = await supabase
       .from('sessions')
       .select('*, challenges(*)')
@@ -26,24 +61,20 @@ export async function POST(req: Request) {
       return Response.json({ error: 'No challenge associated with session' }, { status: 400 });
     }
 
-    // Create E2B sandbox
     const { sandboxId, sandbox } = await createInterviewSandbox(
       challenge.generated_files,
       challenge.description
     );
 
-    // Start activity capture
     const capture = await startActivityCapture(sandbox, session_id);
     activeSandboxes.set(session_id, { sandbox, capture });
 
-    // Update session with sandbox ID and mark as active
     await supabase.from('sessions').update({
       sandbox_id: sandboxId,
       status: 'active',
       started_at: new Date().toISOString(),
     }).eq('id', session_id);
 
-    // Insert session_start event
     await supabase.from('events').insert({
       session_id,
       event_type: 'session_start',

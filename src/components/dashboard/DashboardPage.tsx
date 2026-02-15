@@ -46,6 +46,14 @@ export function DashboardPage({ session }: DashboardPageProps) {
   useEffect(() => {
     if (!session.started_at) return;
     const start = new Date(session.started_at).getTime();
+
+    if (session.status === 'completed' && session.ended_at) {
+      const end = new Date(session.ended_at).getTime();
+      const s = Math.floor((end - start) / 1000);
+      setElapsed(`${Math.floor(s / 60)}m ${(s % 60).toString().padStart(2, '0')}s`);
+      return;
+    }
+
     const tick = () => {
       const s = Math.floor((Date.now() - start) / 1000);
       setElapsed(`${Math.floor(s / 60)}m ${(s % 60).toString().padStart(2, '0')}s`);
@@ -53,7 +61,7 @@ export function DashboardPage({ session }: DashboardPageProps) {
     tick();
     const interval = setInterval(tick, 1000);
     return () => clearInterval(interval);
-  }, [session.started_at]);
+  }, [session.started_at, session.status, session.ended_at]);
 
   const handleEndSession = async () => {
     await fetch(`/api/sessions/${session.id}/end`, { method: 'POST' });
@@ -94,6 +102,7 @@ export function DashboardPage({ session }: DashboardPageProps) {
           candidateName={candidateName}
           status={session.status}
           startedAt={session.started_at}
+          endedAt={session.ended_at}
           onEndSession={handleEndSession}
           onExportReport={handleExportReport}
         />

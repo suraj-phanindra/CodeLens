@@ -1,15 +1,24 @@
-import { activeSandboxes } from '../create/route';
+import { getOrReconnectSandbox, forceReconnectSandbox } from '../create/route';
 
 export async function POST(req: Request) {
   try {
     const { session_id, data } = await req.json();
 
-    const sandboxInfo = activeSandboxes.get(session_id);
-    if (!sandboxInfo) {
-      return Response.json({ error: 'No active sandbox for this session' }, { status: 404 });
+    let sandboxInfo = await getOrReconnectSandbox(session_id);
+    if (!sandboxInfo?.capture?.pty) {
+      return Response.json({ error: 'No active sandbox' }, { status: 404 });
     }
 
-    await sandboxInfo.capture.pty.sendInput(data);
+    try {
+      await sandboxInfo.capture.pty.sendInput(data);
+    } catch {
+      // PTY stale (hot reload) — force reconnect and retry once
+      sandboxInfo = await forceReconnectSandbox(session_id);
+      if (!sandboxInfo?.capture?.pty) {
+        return Response.json({ error: 'Sandbox reconnection failed' }, { status: 503 });
+      }
+      await sandboxInfo.capture.pty.sendInput(data);
+    }
 
     return Response.json({ success: true });
   } catch (error: any) {

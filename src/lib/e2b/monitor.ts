@@ -14,6 +14,14 @@ export async function startActivityCapture(sandbox: Sandbox, sessionId: string) 
     });
   }, { timeoutMs: 0 });
 
+  // Create terminal broadcast channel ONCE and subscribe before PTY creation
+  const terminalChannel = supabase.channel(`terminal:${sessionId}`);
+  await new Promise<void>((resolve) => {
+    terminalChannel.subscribe((status) => {
+      if (status === 'SUBSCRIBED') resolve();
+    });
+  });
+
   // PTY (bidirectional terminal) - debounce DB writes, broadcast immediately
   let terminalBuffer = '';
   let flushTimeout: ReturnType<typeof setTimeout> | null = null;
@@ -26,7 +34,7 @@ export async function startActivityCapture(sandbox: Sandbox, sessionId: string) 
       const text = new TextDecoder().decode(data);
 
       // Broadcast immediately for real-time terminal
-      await supabase.channel(`terminal:${sessionId}`).send({
+      await terminalChannel.send({
         type: 'broadcast',
         event: 'terminal_data',
         payload: { data: text },
@@ -53,6 +61,9 @@ export async function startActivityCapture(sandbox: Sandbox, sessionId: string) 
       pid: handle.pid,
       sendInput: (data: string) => sandbox.pty.sendInput(handle.pid, new TextEncoder().encode(data)),
     },
-    stop: () => watcher.stop(),
+    stop: () => {
+      terminalChannel.unsubscribe();
+      watcher.stop();
+    },
   };
 }

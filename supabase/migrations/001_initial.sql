@@ -94,3 +94,4 @@ CREATE INDEX idx_chat_setup ON chat_messages(session_setup_id, created_at);
 -- Enable Realtime
 ALTER PUBLICATION supabase_realtime ADD TABLE events;
 ALTER PUBLICATION supabase_realtime ADD TABLE insights;
+ALTER PUBLICATION supabase_realtime ADD TABLE sessions;

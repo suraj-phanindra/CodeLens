@@ -8,21 +8,31 @@ interface SessionHeaderProps {
   candidateName: string;
   status: string;
   startedAt: string | null;
+  endedAt?: string | null;
   onEndSession?: () => void;
   onExportReport?: () => void;
 }
 
-export function SessionHeader({ title, candidateName, status, startedAt, onEndSession, onExportReport }: SessionHeaderProps) {
+export function SessionHeader({ title, candidateName, status, startedAt, endedAt, onEndSession, onExportReport }: SessionHeaderProps) {
   const [elapsed, setElapsed] = useState(0);
 
   useEffect(() => {
-    if (!startedAt || status === 'completed') return;
+    if (!startedAt) return;
     const start = new Date(startedAt).getTime();
+
+    if (status === 'completed' && endedAt) {
+      const end = new Date(endedAt).getTime();
+      setElapsed(Math.floor((end - start) / 1000));
+      return;
+    }
+
+    if (status === 'completed') return;
+
     const interval = setInterval(() => {
       setElapsed(Math.floor((Date.now() - start) / 1000));
     }, 1000);
     return () => clearInterval(interval);
-  }, [startedAt, status]);
+  }, [startedAt, status, endedAt]);
 
   const formatDuration = (s: number) => {
     const m = Math.floor(s / 60);
@@ -51,12 +61,14 @@ export function SessionHeader({ title, candidateName, status, startedAt, onEndSe
           <button onClick={onExportReport} className="px-4 py-2 text-sm rounded-lg bg-[#18181b] border border-[#27272a] text-[#a1a1aa] hover:text-[#fafafa] transition-colors">
             Export Report
           </button>
-          <button
-            onClick={onEndSession}
-            className="px-4 py-2 text-sm rounded-lg bg-[#3b82f6] text-white hover:bg-[#3b82f6]/90 transition-colors"
-          >
-            {status === 'completed' ? 'View Summary' : 'End Session'}
-          </button>
+          {status !== 'completed' && (
+            <button
+              onClick={onEndSession}
+              className="px-4 py-2 text-sm rounded-lg bg-[#3b82f6] text-white hover:bg-[#3b82f6]/90 transition-colors"
+            >
+              End Session
+            </button>
+          )}
         </div>
       </div>
     </div>

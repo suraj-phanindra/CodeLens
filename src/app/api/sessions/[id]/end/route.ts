@@ -1,4 +1,5 @@
 import { NextRequest } from 'next/server';
+import { Sandbox } from 'e2b';
 import Anthropic from '@anthropic-ai/sdk';
 import { supabaseAdmin } from '@/lib/supabase/server';
 import { stopObserverLoop } from '@/lib/agents/observer';
@@ -28,6 +29,21 @@ export async function POST(
         console.error('Failed to kill sandbox:', e);
       }
       activeSandboxes.delete(sessionId);
+    } else {
+      // DB fallback: Map is in-memory and lost on hot reload
+      const { data: sess } = await supabase
+        .from('sessions')
+        .select('sandbox_id')
+        .eq('id', sessionId)
+        .single();
+      if (sess?.sandbox_id) {
+        try {
+          const sb = await Sandbox.connect(sess.sandbox_id);
+          await sb.kill();
+        } catch (e) {
+          console.error('Failed to kill sandbox via DB fallback:', e);
+        }
+      }
     }
 
     // Get session data
