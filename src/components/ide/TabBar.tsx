@@ -16,6 +16,7 @@ interface TabBarProps {
 }
 
 function filename(path: string): string {
+  if (path === '__CHALLENGE.md') return 'CHALLENGE.md';
   return path.split('/').pop() || path;
 }
 

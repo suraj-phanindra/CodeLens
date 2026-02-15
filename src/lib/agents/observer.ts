@@ -62,6 +62,21 @@ export async function runObserverCycle(ctx: ObserverContext) {
     return { insights: [], lastProcessedEventId: newEvents[newEvents.length - 1].id };
   }
 
+  // Content dedup: skip signals with same criterion+type as recent signals
+  if (insights.length) {
+    const recentSignals = ctx.previousInsights
+      .filter((i: any) => i.insight_type === 'signal')
+      .slice(-5);
+
+    insights = insights.filter((i: any) => {
+      if (i.insight_type !== 'signal') return true;
+      return !recentSignals.some((s: any) =>
+        s.content?.rubric_criterion === i.content?.rubric_criterion &&
+        s.content?.signal_type === i.content?.signal_type
+      );
+    });
+  }
+
   if (insights.length) {
     await supabase.from('insights').insert(
       insights.map((i: any) => ({
@@ -115,7 +130,7 @@ export async function startObserverLoop(sessionId: string) {
     } catch (e) {
       console.error('Observer cycle error:', e);
     }
-  }, 10000);
+  }, 30000);
 
   activeLoops.set(sessionId, interval);
 

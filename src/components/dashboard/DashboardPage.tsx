@@ -7,7 +7,7 @@ import { SessionHeader } from './SessionHeader';
 import { StatsBar } from './StatsBar';
 import { FilterBar } from './FilterBar';
 import { Timeline } from './Timeline/Timeline';
-import { DetailPanel } from './DetailPanel/DetailPanel';
+import { InsightFeed } from './InsightFeed';
 import { SessionSummary } from './SessionSummary';
 
 interface DashboardPageProps {
@@ -124,11 +124,9 @@ export function DashboardPage({ session }: DashboardPageProps) {
               isLive={isLive}
               activeFilters={activeFilters}
             />
-            <DetailPanel
-              latestReasoning={reasoningUpdates[reasoningUpdates.length - 1] || null}
-              latestSignal={signals[signals.length - 1] || null}
-              latestCopilot={copilotQuestions[copilotQuestions.length - 1] || null}
-              totalSignals={signals.length}
+            <InsightFeed
+              insights={insights}
+              sessionStartTime={session.started_at}
             />
           </>
         )}

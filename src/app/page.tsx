@@ -1,4 +1,5 @@
 import Link from 'next/link';
+import Image from 'next/image';
 
 export default function HomePage() {
   return (
@@ -6,9 +7,7 @@ export default function HomePage() {
       {/* Nav */}
       <nav className="flex items-center justify-between px-8 py-4 border-b border-[#1e1e22]">
         <div className="flex items-center gap-3">
-          <div className="w-9 h-9 rounded-xl bg-gradient-to-br from-[#3b82f6] to-[#a78bfa] flex items-center justify-center">
-            <span className="text-white text-lg font-bold">{'\u25B8'}</span>
-          </div>
+          <Image src="/atrium-logo.png" alt="Atrium" width={36} height={36} className="rounded-xl" />
           <span className="text-[#fafafa] text-xl font-semibold tracking-tight">Atrium</span>
         </div>
       </nav>

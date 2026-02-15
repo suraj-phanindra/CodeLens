@@ -2,6 +2,25 @@ import { Sandbox } from 'e2b';
 import { getOrReconnectSandbox } from '../create/route';
 import { supabaseAdmin } from '@/lib/supabase/server';
 
+const TEST_FILE_PATTERNS = [
+  /^test_/,           // test_main.py
+  /_test\./,          // main_test.py
+  /\.test\./,         // main.test.js
+  /\.spec\./,         // main.spec.ts
+  /^tests\//,         // tests/ directory
+  /^__tests__\//,     // __tests__/ directory
+  /^\.codelens/,      // internal config
+  /conftest\.py$/,    // pytest fixtures
+  /jest\.config/,     // jest config
+  /pytest\.ini$/,     // pytest config
+  /\.pytest_cache/,   // pytest cache
+];
+
+function isTestFile(path: string): boolean {
+  const filename = path.includes('/') ? path.split('/').pop()! : path;
+  return TEST_FILE_PATTERNS.some(p => p.test(filename) || p.test(path));
+}
+
 async function listFiles(sandbox: Sandbox): Promise<string[]> {
   const result = await sandbox.commands.run(
     'find /home/user/project -type f -not -path "*/node_modules/*" -not -path "*/.*" | sort',
@@ -11,7 +30,8 @@ async function listFiles(sandbox: Sandbox): Promise<string[]> {
   return result.stdout
     .split('\n')
     .filter(Boolean)
-    .map((f: string) => f.replace('/home/user/project/', ''));
+    .map((f: string) => f.replace('/home/user/project/', ''))
+    .filter(f => !isTestFile(f));
 }
 
 async function getFilesFromDB(sessionId: string): Promise<string[]> {
@@ -29,7 +49,7 @@ async function getFilesFromDB(sessionId: string): Promise<string[]> {
     .eq('id', session.challenge_id)
     .single();
   if (!challenge?.generated_files) return [];
-  return Object.keys(challenge.generated_files);
+  return Object.keys(challenge.generated_files).filter(f => !isTestFile(f));
 }
 
 async function readFileFromDB(sessionId: string, filePath: string): Promise<string | null> {
@@ -63,6 +83,9 @@ export async function GET(req: Request) {
     const sandbox = sandboxInfo?.sandbox as Sandbox | undefined;
 
     if (filePath) {
+      if (isTestFile(filePath)) {
+        return Response.json({ error: 'File not found' }, { status: 404 });
+      }
       if (sandbox) {
         try {
           const content = await sandbox.files.read(`/home/user/project/${filePath}`);

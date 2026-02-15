@@ -154,7 +154,9 @@ Respond with a JSON array. Each object must be one of:
 - Be selective. Only flag genuinely noteworthy things.
 - Every signal MUST reference a rubric criterion and its weight.
 - Don't repeat previous insights (they're included below for context).
-- If nothing noteworthy happened, return an empty array: []`;
+- If nothing noteworthy happened, return an empty array: []
+- NEVER produce a signal with the same rubric_criterion AND signal_type as one you recently produced. Only produce a new signal for the same criterion if the signal_type changes (e.g., yellow -> green after improvement).
+- Limit yourself to at most 3 insights per cycle. Quality over quantity.`;
 
 export const OBSERVER_USER_MESSAGE = (
   recentEvents: any[],
@@ -187,6 +189,10 @@ export const SUMMARY_USER = (
 **Duration:** ${Math.floor(durationSeconds / 60)} minutes
 **Activity Timeline:** ${allEvents.slice(-200).map(e => `[${e.event_type}] ${e.raw_content.substring(0, 200)}`).join('\n')}
 **Insights:** ${allInsights.map(i => `[${i.insight_type}] ${JSON.stringify(i.content).substring(0, 200)}`).join('\n')}
+
+Score each rubric criterion on a 0-10 scale (10 = exceptional, 0 = no evidence).
+Compute overall_score as the weighted average: sum(score_i * weight_i) / sum(weight_i), rounded to 1 decimal.
+The result MUST be a number between 0.0 and 10.0. Each individual score MUST also be 0-10.
 
 Score EACH rubric criterion individually. Produce JSON:
 {

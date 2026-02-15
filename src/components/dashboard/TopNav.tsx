@@ -1,3 +1,4 @@
+import Image from 'next/image';
 import { cn } from '@/lib/utils';
 
 export function TopNav() {
@@ -5,9 +6,7 @@ export function TopNav() {
     <nav className="flex items-center justify-between px-6 py-3 border-b border-[#1e1e22] animate-fade-in">
       <div className="flex items-center gap-6">
         <div className="flex items-center gap-2.5">
-          <div className="w-8 h-8 rounded-lg bg-gradient-to-br from-[#3b82f6] to-[#a78bfa] flex items-center justify-center">
-            <span className="text-white text-sm font-bold">&#9654;</span>
-          </div>
+          <Image src="/atrium-logo.png" alt="Atrium" width={32} height={32} className="rounded-lg" />
           <span className="text-[#fafafa] font-semibold tracking-tight">Atrium</span>
         </div>
         <div className="flex items-center gap-1">

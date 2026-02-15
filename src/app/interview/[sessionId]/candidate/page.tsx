@@ -1,16 +1,19 @@
 'use client';
 
-import { useEffect, useState, useCallback } from 'react';
+import { useEffect, useState, useCallback, useRef } from 'react';
+import Image from 'next/image';
 import { useParams } from 'next/navigation';
-import { Panel, Group, Separator, usePanelRef, type PanelImperativeHandle } from 'react-resizable-panels';
-import { Clock, Loader2, Square, TerminalSquare, FileText } from 'lucide-react';
+import { Clock, Loader2, Square, TerminalSquare, FileText, Play } from 'lucide-react';
+import { Allotment } from 'allotment';
 import { createClient } from '@/lib/supabase/client';
 import { cn } from '@/lib/utils';
 import FileExplorer from '@/components/ide/FileExplorer';
 import TabBar from '@/components/ide/TabBar';
 import EditorArea from '@/components/ide/EditorArea';
 import TerminalPanel from '@/components/ide/TerminalPanel';
+import OutputPanel, { type OutputPanelRef } from '@/components/ide/OutputPanel';
 import StatusBar from '@/components/ide/StatusBar';
+import ClaudeChat from '@/components/ide/ClaudeChat';
 
 export default function CandidatePage() {
   const params = useParams();
@@ -36,9 +39,10 @@ export default function CandidatePage() {
   const [fileLoading, setFileLoading] = useState(false);
   const [saving, setSaving] = useState(false);
 
-  // Terminal panel
-  const terminalPanelRef = usePanelRef();
-  const [terminalVisible, setTerminalVisible] = useState(true);
+  // Bottom panel: output (default) or terminal
+  const [terminalVisible, setTerminalVisible] = useState(false);
+  const [outputVisible, setOutputVisible] = useState(true);
+  const outputRef = useRef<OutputPanelRef>(null);
 
   // -- File operations --
 
@@ -127,27 +131,28 @@ export default function CandidatePage() {
     }
   }, [sessionId, activeTab, tabDirty, tabEdited]);
 
-  const toggleTerminal = useCallback(() => {
-    const panel = terminalPanelRef.current;
-    if (!panel) return;
-    if (panel.isCollapsed()) {
-      panel.expand();
-    } else {
-      panel.collapse();
-    }
-  }, [terminalPanelRef]);
+  const showTerminal = useCallback(() => {
+    setTerminalVisible(true);
+    setOutputVisible(false);
+  }, []);
 
-  const handleTerminalResize = useCallback(({ asPercentage }: { asPercentage: number; inPixels: number }) => {
-    setTerminalVisible(asPercentage > 0);
+  const showOutput = useCallback(() => {
+    setOutputVisible(true);
+    setTerminalVisible(false);
   }, []);
 
   const openChallengeBrief = useCallback(() => {
     const path = '__CHALLENGE.md';
+    const desc = session?.challenges?.description ?? '';
     if (!openTabs.includes(path)) {
       setOpenTabs((prev) => [path, ...prev]);
     }
     setActiveTab(path);
-  }, [openTabs]);
+    // Re-populate caches if cleared by closeTab
+    setTabContents((prev) => prev[path] !== undefined ? prev : { ...prev, [path]: desc });
+    setTabEdited((prev) => prev[path] !== undefined ? prev : { ...prev, [path]: desc });
+    setTabDirty((prev) => prev[path] !== undefined ? prev : { ...prev, [path]: false });
+  }, [openTabs, session?.challenges?.description]);
 
   // -- Keyboard shortcut: Ctrl+S --
   useEffect(() => {
@@ -181,11 +186,14 @@ export default function CandidatePage() {
             body: JSON.stringify({ session_id: sessionId }),
           });
           if (sandboxRes.ok) {
-            setSandboxReady(true);
             const updatedRes = await fetch(`/api/sessions?id=${sessionId}`);
             const updated = await updatedRes.json();
             setSession(updated);
+          } else {
+            console.error('Sandbox creation failed:', await sandboxRes.text());
           }
+          // Always mark ready — sandbox may exist from a prior attempt
+          setSandboxReady(true);
         } else {
           setSandboxReady(true);
         }
@@ -312,16 +320,36 @@ export default function CandidatePage() {
       {/* Header */}
       <header className="flex items-center justify-between px-4 py-2 border-b border-[#1e1e22] flex-shrink-0">
         <div className="flex items-center gap-3">
-          <div className="w-7 h-7 rounded-lg bg-gradient-to-br from-[#3b82f6] to-[#a78bfa] flex items-center justify-center">
-            <span className="text-white text-xs font-bold">{'\u25B8'}</span>
-          </div>
+          <Image src="/atrium-icon.png" alt="Atrium" width={28} height={28} className="rounded-lg" />
           <span className="text-[#fafafa] font-semibold text-sm">
             {challenge?.title || 'Coding Challenge'}
           </span>
         </div>
         <div className="flex items-center gap-2">
           <button
-            onClick={toggleTerminal}
+            onClick={() => {
+              if (!outputVisible) showOutput();
+              setTimeout(() => outputRef.current?.run(), 0);
+            }}
+            className="flex items-center gap-1.5 px-2.5 py-1.5 text-xs rounded-md border transition-colors bg-[#22c55e]/10 border-[#22c55e]/30 text-[#22c55e] hover:bg-[#22c55e]/20"
+          >
+            <Play className="w-3.5 h-3.5" />
+            Run
+          </button>
+          <button
+            onClick={showOutput}
+            className={cn(
+              'flex items-center gap-1.5 px-2.5 py-1.5 text-xs rounded-md border transition-colors',
+              outputVisible
+                ? 'bg-[#22c55e]/10 border-[#22c55e]/30 text-[#22c55e]'
+                : 'bg-[#18181b] border-[#27272a] text-[#a1a1aa] hover:text-[#fafafa]'
+            )}
+          >
+            <Play className="w-3 h-3" />
+            Output
+          </button>
+          <button
+            onClick={showTerminal}
             className={cn(
               'flex items-center gap-1.5 px-2.5 py-1.5 text-xs rounded-md border transition-colors',
               terminalVisible
@@ -355,50 +383,54 @@ export default function CandidatePage() {
       </header>
 
       {/* IDE Layout */}
-      <Group orientation="vertical" className="flex-1 min-h-0">
-        <Panel defaultSize={70} minSize={30}>
-          <Group orientation="horizontal">
-            <Panel defaultSize={18} minSize={10} maxSize={30} collapsible>
-              <FileExplorer
-                files={fileList}
-                loading={fileListLoading}
-                activeFile={activeTab}
-                openFiles={openTabs}
-                onSelectFile={openFile}
-                onRefresh={fetchFileList}
-              />
-            </Panel>
-            <Separator className="w-[3px] bg-[#1e1e22] hover:bg-[#3b82f6]/50 transition-colors" />
-            <Panel defaultSize={82}>
-              <div className="flex flex-col h-full">
-                <TabBar
-                  tabs={tabs}
-                  activeTab={activeTab}
-                  onSelectTab={setActiveTab}
-                  onCloseTab={closeTab}
-                />
-                <EditorArea
-                  activeTab={activeTab}
-                  content={currentContent}
-                  loading={fileLoading && activeTab !== '__CHALLENGE.md'}
-                  readOnly={isReadOnly}
-                  onChange={handleEditorChange}
-                />
-              </div>
-            </Panel>
-          </Group>
-        </Panel>
-        <Separator className="h-[3px] bg-[#1e1e22] hover:bg-[#3b82f6]/50 transition-colors" />
-        <Panel
-          panelRef={terminalPanelRef}
-          defaultSize={30}
-          minSize={15}
-          collapsible
-          onResize={handleTerminalResize}
-        >
-          <TerminalPanel sessionId={sessionId} sandboxReady={sandboxReady} />
-        </Panel>
-      </Group>
+      <div className="flex-1 min-h-0">
+        <Allotment>
+          <Allotment.Pane minSize={180} preferredSize={220}>
+            <FileExplorer
+              files={fileList}
+              loading={fileListLoading}
+              activeFile={activeTab}
+              openFiles={openTabs}
+              onSelectFile={openFile}
+              onRefresh={fetchFileList}
+            />
+          </Allotment.Pane>
+          <Allotment.Pane>
+            <Allotment vertical>
+              <Allotment.Pane>
+                <div className="flex flex-col h-full">
+                  <TabBar
+                    tabs={tabs}
+                    activeTab={activeTab}
+                    onSelectTab={setActiveTab}
+                    onCloseTab={closeTab}
+                  />
+                  <EditorArea
+                    activeTab={activeTab}
+                    content={currentContent}
+                    loading={fileLoading && activeTab !== '__CHALLENGE.md'}
+                    readOnly={isReadOnly}
+                    onChange={handleEditorChange}
+                  />
+                </div>
+              </Allotment.Pane>
+              {outputVisible && (
+                <Allotment.Pane minSize={100} preferredSize={280}>
+                  <OutputPanel ref={outputRef} sessionId={sessionId} />
+                </Allotment.Pane>
+              )}
+              {terminalVisible && (
+                <Allotment.Pane minSize={100} preferredSize={280}>
+                  <TerminalPanel sessionId={sessionId} sandboxReady={sandboxReady} />
+                </Allotment.Pane>
+              )}
+            </Allotment>
+          </Allotment.Pane>
+          <Allotment.Pane minSize={280} preferredSize={360}>
+            <ClaudeChat sessionId={sessionId} challengeDescription={challenge?.description} />
+          </Allotment.Pane>
+        </Allotment>
+      </div>
 
       <StatusBar activeFile={activeTab} dirty={currentDirty} saving={saving} />
 

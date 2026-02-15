@@ -27,7 +27,7 @@ export function SessionSummary({ summary }: SessionSummaryProps) {
       <div className="flex items-center gap-8 mb-6">
         <div>
           <span className="text-[11px] uppercase tracking-wide text-[#71717a]">Overall Score</span>
-          <div className="text-3xl font-bold text-[#fafafa] font-mono">{content.overall_score}<span className="text-lg text-[#71717a]">/10</span></div>
+          <div className="text-3xl font-bold text-[#fafafa] font-mono">{Math.min(10, content.overall_score).toFixed(1)}<span className="text-lg text-[#71717a]">/10</span></div>
         </div>
         <div>
           <span className="text-[11px] uppercase tracking-wide text-[#71717a]">Hiring Signal</span>
@@ -58,12 +58,12 @@ export function SessionSummary({ summary }: SessionSummaryProps) {
                   <div
                     className="h-full rounded-full transition-all duration-500"
                     style={{
-                      width: `${score.score * 10}%`,
+                      width: `${Math.min(100, score.score * 10)}%`,
                       backgroundColor: score.score >= 7 ? '#34d399' : score.score >= 5 ? '#fb923c' : '#f87171',
                     }}
                   />
                 </div>
-                <span className="text-sm font-mono text-[#fafafa] w-[30px] text-right">{score.score}</span>
+                <span className="text-sm font-mono text-[#fafafa] w-[30px] text-right">{Math.min(10, score.score).toFixed(1)}</span>
               </div>
             ))}
           </div>

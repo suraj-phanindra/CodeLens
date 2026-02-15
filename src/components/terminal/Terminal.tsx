@@ -8,11 +8,9 @@ interface TerminalProps {
 
 export default function TerminalComponent({ sessionId }: TerminalProps) {
   const termRef = useRef<HTMLDivElement>(null);
-  const initialized = useRef(false);
 
   useEffect(() => {
-    if (!termRef.current || initialized.current) return;
-    initialized.current = true;
+    if (!termRef.current) return;
 
     let cleanup: (() => void) | undefined;
 
@@ -39,7 +37,10 @@ export default function TerminalComponent({ sessionId }: TerminalProps) {
       const fitAddon = new FitAddon();
       term.loadAddon(fitAddon);
       term.open(termRef.current);
-      fitAddon.fit();
+      requestAnimationFrame(() => {
+        fitAddon.fit();
+        setTimeout(() => { try { fitAddon.fit(); } catch {} }, 100);
+      });
 
       // Refit on container resize
       const ro = new ResizeObserver(() => {
