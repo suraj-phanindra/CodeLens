@@ -21,7 +21,7 @@ export function SessionSummary({ summary }: SessionSummaryProps) {
 
   return (
     <div className="mx-6 rounded-xl border border-[#27272a] bg-[#111114] p-6 animate-fade-in">
-      <h2 className="text-lg font-semibold text-[#fafafa] mb-4">Session Complete -- Summary</h2>
+      <h2 className="text-lg font-semibold text-[#fafafa] mb-4">Session Complete: Summary</h2>
 
       {/* Score + Hiring Signal */}
       <div className="flex items-center gap-8 mb-6">

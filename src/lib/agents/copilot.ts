@@ -31,7 +31,7 @@ Recent signals:
 ${recentSignals.map(s => `[${s.content.signal_type}] ${s.content.title}: ${s.content.description}`).join('\n')}
 
 Current reasoning:
-${recentReasoning.map(r => `Phase: ${r.content.phase} — ${r.content.summary}`).join('\n')}
+${recentReasoning.map(r => `Phase: ${r.content.phase}: ${r.content.summary}`).join('\n')}
 
 For each question, produce JSON:
 [{
@@ -47,7 +47,7 @@ Return ONLY a JSON array.`;
 
   try {
     const response = await anthropic.messages.create({
-      model: 'claude-opus-4-6-20250213',
+      model: 'claude-opus-4-6',
       max_tokens: 1000,
       messages: [{ role: 'user', content: prompt }],
     });

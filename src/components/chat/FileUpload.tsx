@@ -1,29 +1,42 @@
 'use client';
 
-import { useCallback, useState } from 'react';
-import { Upload, FileText, X, Loader2 } from 'lucide-react';
+import { useCallback, useRef, useState } from 'react';
+import { Paperclip, Loader2 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 
-interface FileUploadProps {
-  onFileUploaded: (file: { id: string; name: string; type: 'job_description' | 'resume'; size: number }) => void;
-  documentType: 'job_description' | 'resume';
-  label: string;
+const ACCEPTED_EXTENSIONS = ['.pdf', '.docx', '.txt', '.md'];
+const ACCEPT_STRING = '.pdf,.docx,.txt,.md';
+
+function getDocumentType(filename: string): 'job_description' | 'resume' | 'document' {
+  const lower = filename.toLowerCase();
+  if (lower.includes('jd') || lower.includes('job') || lower.includes('description') || lower.includes('role')) {
+    return 'job_description';
+  }
+  if (lower.includes('resume') || lower.includes('cv') || lower.includes('candidate')) {
+    return 'resume';
+  }
+  return 'document';
 }
 
-export function FileUpload({ onFileUploaded, documentType, label }: FileUploadProps) {
-  const [isDragging, setIsDragging] = useState(false);
+interface FileUploadProps {
+  onFileUploaded: (file: { id: string; name: string; type: string; size: number }) => void;
+  onUploadingChange?: (isUploading: boolean) => void;
+}
+
+export function FileUpload({ onFileUploaded, onUploadingChange }: FileUploadProps) {
   const [isUploading, setIsUploading] = useState(false);
-  const [uploadedFile, setUploadedFile] = useState<{ name: string; id: string } | null>(null);
-  const [error, setError] = useState<string | null>(null);
+  const activeUploads = useRef(0);
+  const inputRef = useRef<HTMLInputElement>(null);
 
   const handleUpload = useCallback(async (file: File) => {
-    if (!file.name.endsWith('.pdf')) {
-      setError('Only PDF files are accepted');
+    const ext = '.' + file.name.split('.').pop()?.toLowerCase();
+    if (!ACCEPTED_EXTENSIONS.includes(ext)) {
       return;
     }
 
+    activeUploads.current += 1;
     setIsUploading(true);
-    setError(null);
+    onUploadingChange?.(true);
 
     try {
       const formData = new FormData();
@@ -35,75 +48,61 @@ export function FileUpload({ onFileUploaded, documentType, label }: FileUploadPr
       });
 
       const data = await response.json();
-
       if (!response.ok) throw new Error(data.error);
 
-      setUploadedFile({ name: file.name, id: data.file_id });
+      const docType = getDocumentType(file.name);
       onFileUploaded({
         id: data.file_id,
         name: file.name,
-        type: documentType,
+        type: docType,
         size: file.size,
       });
     } catch (err: any) {
-      setError(err.message || 'Upload failed');
+      console.error('Upload failed:', err.message);
     } finally {
-      setIsUploading(false);
+      activeUploads.current -= 1;
+      if (activeUploads.current === 0) {
+        setIsUploading(false);
+        onUploadingChange?.(false);
+      }
+      if (inputRef.current) inputRef.current.value = '';
     }
-  }, [documentType, onFileUploaded]);
-
-  const handleDrop = useCallback((e: React.DragEvent) => {
-    e.preventDefault();
-    setIsDragging(false);
-    const file = e.dataTransfer.files[0];
-    if (file) handleUpload(file);
-  }, [handleUpload]);
+  }, [onFileUploaded, onUploadingChange]);
 
   const handleFileSelect = useCallback((e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    if (file) handleUpload(file);
+    const files = e.target.files;
+    if (!files) return;
+    // Upload all selected files
+    Array.from(files).forEach(file => handleUpload(file));
   }, [handleUpload]);
 
-  if (uploadedFile) {
-    return (
-      <div className="flex items-center gap-2 px-3 py-2 rounded-lg bg-[#18181b] border border-[#27272a]">
-        <FileText className="w-4 h-4 text-[#3b82f6]" />
-        <span className="text-sm text-[#fafafa] truncate flex-1">{uploadedFile.name}</span>
-        <button
-          onClick={() => setUploadedFile(null)}
-          className="text-[#71717a] hover:text-[#fafafa] transition-colors"
-        >
-          <X className="w-3 h-3" />
-        </button>
-      </div>
-    );
-  }
-
   return (
-    <div
-      onDragOver={(e) => { e.preventDefault(); setIsDragging(true); }}
-      onDragLeave={() => setIsDragging(false)}
-      onDrop={handleDrop}
-      className={cn(
-        'relative flex flex-col items-center justify-center gap-2 p-4 rounded-lg border-2 border-dashed transition-all cursor-pointer',
-        isDragging
-          ? 'border-[#3b82f6] bg-[#3b82f6]/10'
-          : 'border-[#27272a] bg-[#111114] hover:border-[#3b82f6]/50'
-      )}
-    >
+    <>
       <input
+        ref={inputRef}
         type="file"
-        accept=".pdf"
+        accept={ACCEPT_STRING}
+        multiple
         onChange={handleFileSelect}
-        className="absolute inset-0 opacity-0 cursor-pointer"
+        className="hidden"
       />
-      {isUploading ? (
-        <Loader2 className="w-5 h-5 text-[#3b82f6] animate-spin" />
-      ) : (
-        <Upload className="w-5 h-5 text-[#71717a]" />
-      )}
-      <span className="text-xs text-[#71717a]">{label}</span>
-      {error && <span className="text-xs text-red-400">{error}</span>}
-    </div>
+      <button
+        onClick={() => inputRef.current?.click()}
+        disabled={isUploading}
+        className={cn(
+          'p-2 rounded-lg transition-colors',
+          isUploading
+            ? 'text-[#3b82f6]'
+            : 'text-[#71717a] hover:text-[#a1a1aa] hover:bg-[#18181b]'
+        )}
+        title="Upload files (.pdf, .docx, .txt, .md)"
+      >
+        {isUploading ? (
+          <Loader2 className="w-4 h-4 animate-spin" />
+        ) : (
+          <Paperclip className="w-4 h-4" />
+        )}
+      </button>
+    </>
   );
 }

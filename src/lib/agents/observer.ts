@@ -36,7 +36,7 @@ export async function runObserverCycle(ctx: ObserverContext) {
 
   let responseText = '';
   const stream = anthropic.messages.stream({
-    model: 'claude-opus-4-6-20250213',
+    model: 'claude-opus-4-6',
     max_tokens: 2000,
     system: OBSERVER_SYSTEM_PROMPT(
       ctx.challengeDescription,

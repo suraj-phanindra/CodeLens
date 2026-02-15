@@ -3,6 +3,7 @@
 import { useEffect, useState } from 'react';
 import { useParams } from 'next/navigation';
 import { DashboardPage } from '@/components/dashboard/DashboardPage';
+import { createClient } from '@/lib/supabase/client';
 import { Loader2 } from 'lucide-react';
 
 export default function DashboardRoute() {
@@ -26,6 +27,24 @@ export default function DashboardRoute() {
       }
     }
     load();
+  }, [sessionId]);
+
+  // Subscribe to session status changes via Supabase Realtime
+  useEffect(() => {
+    if (!sessionId) return;
+    const supabase = createClient();
+    const channel = supabase
+      .channel(`session-dash:${sessionId}`)
+      .on('postgres_changes', {
+        event: 'UPDATE',
+        schema: 'public',
+        table: 'sessions',
+        filter: `id=eq.${sessionId}`,
+      }, (payload: any) => {
+        setSession((prev: any) => prev ? { ...prev, ...payload.new } : prev);
+      })
+      .subscribe();
+    return () => { channel.unsubscribe(); };
   }, [sessionId]);
 
   if (loading) {

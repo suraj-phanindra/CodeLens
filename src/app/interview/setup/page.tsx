@@ -9,8 +9,8 @@ export default function SetupPage() {
           <div className="w-8 h-8 rounded-lg bg-gradient-to-br from-[#3b82f6] to-[#a78bfa] flex items-center justify-center">
             <span className="text-white text-sm font-bold">{'\u25B8'}</span>
           </div>
-          <span className="text-[#fafafa] font-semibold">IntoView</span>
-          <span className="text-[#71717a] text-sm">/ Interview Setup</span>
+          <span className="text-[#fafafa] font-semibold">Atrium</span>
+          <span className="text-[#71717a] text-sm">/ Design your interview</span>
         </div>
       </header>
 

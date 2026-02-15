@@ -18,14 +18,15 @@ export default function TerminalComponent({ sessionId }: TerminalProps) {
 
     (async () => {
       const { Terminal } = await import('@xterm/xterm');
-      const { FitAddon } = await import('@xterm/addon-fit');
       const { createClient } = await import('@/lib/supabase/client');
 
       if (!termRef.current) return;
 
       const term = new Terminal({
+        cols: 120,
+        rows: 40,
         cursorBlink: true,
-        fontSize: 14,
+        fontSize: 13,
         fontFamily: "'JetBrains Mono', Menlo, Monaco, 'Courier New', monospace",
         theme: {
           background: '#09090b',
@@ -36,10 +37,7 @@ export default function TerminalComponent({ sessionId }: TerminalProps) {
         scrollback: 5000,
       });
 
-      const fit = new FitAddon();
-      term.loadAddon(fit);
       term.open(termRef.current);
-      fit.fit();
 
       // Subscribe to terminal output from sandbox
       const supabase = createClient();
@@ -59,13 +57,9 @@ export default function TerminalComponent({ sessionId }: TerminalProps) {
         });
       });
 
-      const handleResize = () => fit.fit();
-      window.addEventListener('resize', handleResize);
-
       cleanup = () => {
         channel.unsubscribe();
         term.dispose();
-        window.removeEventListener('resize', handleResize);
       };
     })();
 

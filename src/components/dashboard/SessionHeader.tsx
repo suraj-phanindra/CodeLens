@@ -9,9 +9,10 @@ interface SessionHeaderProps {
   status: string;
   startedAt: string | null;
   onEndSession?: () => void;
+  onExportReport?: () => void;
 }
 
-export function SessionHeader({ title, candidateName, status, startedAt, onEndSession }: SessionHeaderProps) {
+export function SessionHeader({ title, candidateName, status, startedAt, onEndSession, onExportReport }: SessionHeaderProps) {
   const [elapsed, setElapsed] = useState(0);
 
   useEffect(() => {
@@ -47,7 +48,7 @@ export function SessionHeader({ title, candidateName, status, startedAt, onEndSe
           </div>
         </div>
         <div className="flex items-center gap-2">
-          <button className="px-4 py-2 text-sm rounded-lg bg-[#18181b] border border-[#27272a] text-[#a1a1aa] hover:text-[#fafafa] transition-colors">
+          <button onClick={onExportReport} className="px-4 py-2 text-sm rounded-lg bg-[#18181b] border border-[#27272a] text-[#a1a1aa] hover:text-[#fafafa] transition-colors">
             Export Report
           </button>
           <button

@@ -57,7 +57,7 @@ export function CopilotCard({ question }: CopilotCardProps) {
           </div>
         </div>
       ) : (
-        <p className="text-sm text-[#71717a] italic">No suggestions yet -- Opus 4.6 is watching</p>
+        <p className="text-sm text-[#71717a] italic">No suggestions yet. Opus 4.6 is watching.</p>
       )}
     </div>
   );

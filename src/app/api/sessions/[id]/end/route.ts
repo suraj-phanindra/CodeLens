@@ -18,10 +18,15 @@ export async function POST(
     // Stop observer
     stopObserverLoop(sessionId);
 
-    // Stop sandbox capture
+    // Stop sandbox capture and kill the sandbox VM
     const sandboxInfo = activeSandboxes.get(sessionId);
     if (sandboxInfo) {
       sandboxInfo.capture.stop();
+      try {
+        await sandboxInfo.sandbox.kill();
+      } catch (e) {
+        console.error('Failed to kill sandbox:', e);
+      }
       activeSandboxes.delete(sessionId);
     }
 
@@ -50,7 +55,7 @@ export async function POST(
 
     // Generate summary with Opus 4.6
     const response = await anthropic.messages.create({
-      model: 'claude-opus-4-6-20250213',
+      model: 'claude-opus-4-6',
       max_tokens: 3000,
       system: SUMMARY_SYSTEM,
       messages: [{

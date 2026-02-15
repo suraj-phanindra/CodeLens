@@ -15,8 +15,8 @@ const jetbrainsMono = JetBrains_Mono({
 });
 
 export const metadata: Metadata = {
-  title: 'IntoView — AI-Powered Technical Interviews',
-  description: 'Replace LeetCode interviews with real-world coding challenges. Powered by Opus 4.6.',
+  title: 'Atrium. See how they think.',
+  description: 'Atrium replaces LeetCode interviews with paid, real-world challenges. An AI observation layer reveals how candidates actually reason, debug, and build.',
 };
 
 export default function RootLayout({

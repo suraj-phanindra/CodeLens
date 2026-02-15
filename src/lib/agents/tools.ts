@@ -14,13 +14,13 @@ export const ARCHITECT_TOOLS: Anthropic.Tool[] = [
     }
   },
   {
-    name: 'parse_uploaded_pdf',
-    description: 'Extract text from an uploaded PDF file. Use for job descriptions and candidate resumes.',
+    name: 'parse_uploaded_document',
+    description: 'Extract text from an uploaded document. Supports PDF, DOCX, TXT, and MD files. Use for job descriptions, resumes, and other documents.',
     input_schema: {
       type: 'object' as const,
       properties: {
         file_id: { type: 'string', description: 'The uploaded file ID' },
-        document_type: { type: 'string', enum: ['job_description', 'resume'], description: 'Type of document' }
+        document_type: { type: 'string', enum: ['job_description', 'resume', 'document'], description: 'Type of document' }
       },
       required: ['file_id', 'document_type']
     }

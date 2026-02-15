@@ -8,10 +8,22 @@ const anthropic = new Anthropic();
 export const maxDuration = 120;
 
 export async function POST(req: Request) {
-  const { messages, setupId } = await req.json();
+  const { messages, setupId, uploadedFiles } = await req.json();
 
   const encoder = new TextEncoder();
   const context = { setupId: setupId || 'default', challengeId: undefined, rubricId: undefined };
+
+  // Build dynamic system prompt with file context
+  let systemPrompt = ARCHITECT_SYSTEM_PROMPT;
+  if (uploadedFiles?.length > 0) {
+    const fileDescriptions = uploadedFiles.map((f: any) => {
+      const typeLabel = f.type === 'job_description' ? 'Job Description'
+        : f.type === 'resume' ? 'Resume'
+        : 'Document';
+      return `- ${typeLabel}: "${f.name}" (file_id: ${f.id})`;
+    }).join('\n');
+    systemPrompt += `\n\n## Currently Uploaded Files\n\nThe interviewer has already uploaded:\n${fileDescriptions}\n\nIMPORTANT: Call parse_uploaded_document for each file immediately. Do not ask for files already listed here.`;
+  }
 
   const stream = new ReadableStream({
     async start(controller) {
@@ -36,46 +48,59 @@ export async function POST(req: Request) {
         while (continueLoop) {
           continueLoop = false;
 
-          const response = await anthropic.messages.create({
-            model: 'claude-opus-4-6-20250213',
+          // Use streaming API for real-time token delivery
+          const response = anthropic.messages.stream({
+            model: 'claude-opus-4-6',
             max_tokens: 4096,
-            system: ARCHITECT_SYSTEM_PROMPT,
+            system: systemPrompt,
             messages: currentMessages,
             tools: ARCHITECT_TOOLS,
           });
 
-          for (const block of response.content) {
-            if (block.type === 'text') {
-              send({ type: 'text', content: block.text });
-            } else if (block.type === 'tool_use') {
-              send({ type: 'tool_use', tool: block.name, input: block.input, tool_use_id: block.id });
+          // Stream text deltas in real-time
+          response.on('text', (text) => {
+            send({ type: 'text', content: text });
+          });
 
-              // Execute the tool
+          // Wait for the full message to complete
+          const finalMessage = await response.finalMessage();
+
+          const toolUseBlocks = finalMessage.content.filter(
+            (b): b is Anthropic.ToolUseBlock => b.type === 'tool_use'
+          );
+
+          if (toolUseBlocks.length > 0) {
+            const toolResults: Anthropic.ToolResultBlockParam[] = [];
+
+            for (const block of toolUseBlocks) {
+              send({ type: 'tool_use', tool: block.name, input: block.input, tool_use_id: block.id });
               const result = await handleToolCall(block.name, block.input as Record<string, any>, context);
               send({ type: 'tool_result', tool: block.name, result, tool_use_id: block.id });
-
-              // Continue the conversation with tool result
-              currentMessages = [
-                ...currentMessages,
-                { role: 'assistant' as const, content: response.content },
-                {
-                  role: 'user' as const,
-                  content: [{ type: 'tool_result' as const, tool_use_id: block.id, content: result }],
-                },
-              ];
-              continueLoop = true;
-              break; // Process one tool at a time
+              toolResults.push({
+                type: 'tool_result' as const,
+                tool_use_id: block.id,
+                content: result,
+              });
             }
+
+            currentMessages = [
+              ...currentMessages,
+              { role: 'assistant' as const, content: finalMessage.content },
+              { role: 'user' as const, content: toolResults },
+            ];
+            continueLoop = true;
           }
 
-          if (response.stop_reason === 'end_turn') {
+          if (finalMessage.stop_reason === 'end_turn') {
             continueLoop = false;
           }
         }
 
         send({ type: 'done' });
       } catch (error: any) {
-        send({ type: 'error', message: error.message || 'An error occurred' });
+        console.error('[chat route] Error:', error?.error || error?.message || error);
+        const msg = error?.error?.error?.message || error?.message || 'An error occurred';
+        send({ type: 'error', message: msg });
       } finally {
         controller.close();
       }

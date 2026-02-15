@@ -14,25 +14,37 @@ export async function startActivityCapture(sandbox: Sandbox, sessionId: string) 
     });
   }, { timeoutMs: 0 });
 
-  // PTY (bidirectional terminal)
+  // PTY (bidirectional terminal) - debounce DB writes, broadcast immediately
+  let terminalBuffer = '';
+  let flushTimeout: ReturnType<typeof setTimeout> | null = null;
+
   const handle = await sandbox.pty.create({
     cols: 120,
     rows: 40,
     cwd: '/home/user/project',
     onData: async (data: Uint8Array) => {
       const text = new TextDecoder().decode(data);
-      // Store in events table
-      await supabase.from('events').insert({
-        session_id: sessionId,
-        event_type: 'terminal_output',
-        raw_content: text,
-      });
-      // Broadcast to candidate's browser via Supabase Realtime
+
+      // Broadcast immediately for real-time terminal
       await supabase.channel(`terminal:${sessionId}`).send({
         type: 'broadcast',
         event: 'terminal_data',
         payload: { data: text },
       });
+
+      // Debounce DB writes: batch 500ms of output into one event
+      terminalBuffer += text;
+      if (flushTimeout) clearTimeout(flushTimeout);
+      flushTimeout = setTimeout(async () => {
+        if (terminalBuffer) {
+          await supabase.from('events').insert({
+            session_id: sessionId,
+            event_type: 'terminal_output',
+            raw_content: terminalBuffer,
+          });
+          terminalBuffer = '';
+        }
+      }, 500);
     },
   });
 

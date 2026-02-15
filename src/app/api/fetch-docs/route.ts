@@ -7,7 +7,7 @@ export async function POST(req: Request) {
     }
 
     const response = await fetch(url, {
-      headers: { 'User-Agent': 'IntoView/1.0' },
+      headers: { 'User-Agent': 'Atrium/1.0' },
       signal: AbortSignal.timeout(15000),
     });
 
@@ -17,7 +17,7 @@ export async function POST(req: Request) {
 
     const html = await response.text();
 
-    // Strip HTML tags, scripts, styles — keep text + code blocks
+    // Strip HTML tags, scripts, styles; keep text + code blocks
     const text = html
       .replace(/<script[^>]*>[\s\S]*?<\/script>/gi, '')
       .replace(/<style[^>]*>[\s\S]*?<\/style>/gi, '')

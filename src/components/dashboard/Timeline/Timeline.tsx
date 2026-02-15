@@ -1,6 +1,6 @@
 'use client';
 
-import { useMemo, useState } from 'react';
+import { useMemo, useRef, useEffect } from 'react';
 import { TokenGraph } from './TokenGraph';
 import { SwimLanes } from './SwimLanes';
 import { Playhead } from './Playhead';
@@ -17,6 +17,13 @@ interface TimelineProps {
 }
 
 export function Timeline({ events, insights, sessionStartTime, isLive, activeFilters, onSelectEvent }: TimelineProps) {
+  const scrollRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    if (isLive && scrollRef.current) {
+      scrollRef.current.scrollLeft = scrollRef.current.scrollWidth;
+    }
+  }, [events, insights, isLive]);
   const startTime = useMemo(() =>
     sessionStartTime ? new Date(sessionStartTime).getTime() : Date.now() - 60000,
     [sessionStartTime]
@@ -38,7 +45,7 @@ export function Timeline({ events, insights, sessionStartTime, isLive, activeFil
   }, [isLive, startTime, endTime]);
 
   return (
-    <div className="mx-6 rounded-xl border border-[#27272a] bg-[#111114] overflow-hidden animate-fade-in stagger-4">
+    <div ref={scrollRef} className="mx-6 rounded-xl border border-[#27272a] bg-[#111114] overflow-x-auto animate-fade-in stagger-4">
       {/* Token graph */}
       <TokenGraph events={events} startTime={startTime} endTime={endTime} />
 

@@ -1,18 +1,65 @@
 import Anthropic from '@anthropic-ai/sdk';
 import { supabaseAdmin } from '@/lib/supabase/server';
 import { extractPdfText } from '@/lib/pdf/parser';
+import fs from 'fs';
+import path from 'path';
+import os from 'os';
 
 const anthropic = new Anthropic();
 
-// Module-level storage for uploaded PDF buffers
-const pdfBuffers = new Map<string, Buffer>();
+// File-based storage for uploaded buffers (survives across API route workers)
+const UPLOAD_DIR = path.join(os.tmpdir(), 'codelens-uploads');
 
-export function storePdfBuffer(fileId: string, buffer: Buffer) {
-  pdfBuffers.set(fileId, buffer);
+function ensureUploadDir() {
+  if (!fs.existsSync(UPLOAD_DIR)) {
+    fs.mkdirSync(UPLOAD_DIR, { recursive: true });
+  }
 }
 
-export function getPdfBuffer(fileId: string): Buffer | undefined {
-  return pdfBuffers.get(fileId);
+export function storeFileBuffer(fileId: string, buffer: Buffer, filename: string) {
+  ensureUploadDir();
+  fs.writeFileSync(path.join(UPLOAD_DIR, `${fileId}.bin`), buffer);
+  fs.writeFileSync(path.join(UPLOAD_DIR, `${fileId}.meta`), filename);
+}
+
+// Keep backward compat alias
+export function storePdfBuffer(fileId: string, buffer: Buffer) {
+  storeFileBuffer(fileId, buffer, 'unknown.pdf');
+}
+
+export function getFileBuffer(fileId: string): { buffer: Buffer; filename: string } | undefined {
+  try {
+    const bufferPath = path.join(UPLOAD_DIR, `${fileId}.bin`);
+    const metaPath = path.join(UPLOAD_DIR, `${fileId}.meta`);
+    if (!fs.existsSync(bufferPath)) return undefined;
+    const buffer = fs.readFileSync(bufferPath);
+    const filename = fs.existsSync(metaPath) ? fs.readFileSync(metaPath, 'utf-8') : 'unknown.pdf';
+    return { buffer, filename };
+  } catch {
+    return undefined;
+  }
+}
+
+async function extractText(buffer: Buffer, filename: string): Promise<string> {
+  const ext = filename.split('.').pop()?.toLowerCase() || '';
+
+  switch (ext) {
+    case 'pdf':
+      return await extractPdfText(buffer);
+
+    case 'docx': {
+      const mammoth = await import('mammoth');
+      const result = await mammoth.extractRawText({ buffer });
+      return result.value;
+    }
+
+    case 'txt':
+    case 'md':
+      return buffer.toString('utf-8');
+
+    default:
+      throw new Error(`Unsupported file type: .${ext}`);
+  }
 }
 
 interface ToolCallContext {
@@ -33,7 +80,7 @@ export async function handleToolCall(
       const { url } = input;
       try {
         const response = await fetch(url, {
-          headers: { 'User-Agent': 'IntoView/1.0' },
+          headers: { 'User-Agent': 'Atrium/1.0' },
           signal: AbortSignal.timeout(15000),
         });
         const html = await response.text();
@@ -51,14 +98,15 @@ export async function handleToolCall(
       }
     }
 
+    case 'parse_uploaded_document':
     case 'parse_uploaded_pdf': {
       const { file_id, document_type } = input;
-      const buffer = pdfBuffers.get(file_id);
-      if (!buffer) {
+      const stored = getFileBuffer(file_id);
+      if (!stored) {
         return JSON.stringify({ success: false, error: 'File not found. Please re-upload.' });
       }
       try {
-        const text = await extractPdfText(buffer);
+        const text = await extractText(stored.buffer, stored.filename);
         return JSON.stringify({
           success: true,
           document_type,
@@ -92,37 +140,63 @@ ${(job_description_text || '').substring(0, 5000)}
 Candidate Resume:
 ${(resume_text || '').substring(0, 5000)}
 
-Generate a JSON response with:
+You MUST respond with a single valid JSON object. No markdown fences, no commentary.
+
+CRITICAL FORMAT RULES:
+- Keep each file CONCISE: 30-80 lines max per file. Focus on the buggy logic, not boilerplate.
+- Generate exactly 3-5 files (not more). Keep it small and focused.
+- The "description" field should be a brief README (under 500 chars).
+- The "solution_hints" field should be one short paragraph.
+- Do NOT include large comments, headers, or license blocks in generated files.
+- Every string value must be properly escaped (newlines as \\n, quotes as \\", no raw line breaks inside JSON strings).
+
+JSON schema:
 {
-  "title": "Challenge title",
-  "description": "Markdown description shown to candidate (README content)",
-  "generated_files": { "path/to/file.ts": "file content", ... },
-  "expected_bugs": [{ "description": "bug desc", "file": "path", "hint": "how to find it" }],
-  "solution_hints": "Private hints for the observer agent",
-  "language": "typescript"
+  "title": "string",
+  "description": "string (brief README for candidate)",
+  "generated_files": { "path/file.ext": "file content as single-line escaped string", ... },
+  "expected_bugs": [{ "description": "string", "file": "path", "hint": "string" }],
+  "solution_hints": "string",
+  "language": "typescript|python"
 }
 
 Requirements:
-- Generate 3-8 files forming a coherent project
-- Include package.json with correct dependencies
-- Include a clear README.md
-- Bugs should feel like real production issues
 - Use the actual SDK from the docs provided
-- Include intentional bugs in the focus areas specified
+- Include 2-3 intentional bugs in the focus areas specified
+- Bugs should feel like real production issues, not contrived puzzles
+- Include a package.json with correct dependencies
 
-Return ONLY valid JSON.`;
+Respond with ONLY the JSON object. No wrapping, no explanation.`;
 
       try {
         const response = await anthropic.messages.create({
-          model: 'claude-opus-4-6-20250213',
-          max_tokens: 8000,
+          model: 'claude-opus-4-6',
+          max_tokens: 16000,
           messages: [{ role: 'user', content: generationPrompt }],
         });
 
         const textBlock = response.content.find(b => b.type === 'text');
         const responseText = textBlock ? textBlock.text : '';
         const cleaned = responseText.replace(/```json\n?|\n?```/g, '').trim();
-        const challenge = JSON.parse(cleaned);
+
+        let challenge;
+        try {
+          challenge = JSON.parse(cleaned);
+        } catch (parseError: any) {
+          // If JSON is truncated, try to salvage by closing open strings/braces
+          const salvaged = cleaned
+            .replace(/,\s*$/, '')           // remove trailing comma
+            .replace(/"\s*$/, '"')          // close trailing string
+            + '}}]}';                       // close any open structures
+          try {
+            challenge = JSON.parse(salvaged);
+          } catch {
+            return JSON.stringify({
+              success: false,
+              error: `Challenge generation produced invalid JSON: ${parseError.message}. Try again with a simpler scenario.`,
+            });
+          }
+        }
 
         // Store in DB
         const { data, error } = await supabase.from('challenges').insert({

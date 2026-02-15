@@ -41,6 +41,11 @@ export function SwimLanes({ events, insights, startTime, endTime, activeFilters,
     [insights]
   );
 
+  const reasoningInsights = useMemo(() =>
+    insights.filter(i => i.insight_type === 'reasoning_update'),
+    [insights]
+  );
+
   const copilotInsights = useMemo(() =>
     insights.filter(i => i.insight_type === 'copilot_question'),
     [insights]
@@ -101,6 +106,20 @@ export function SwimLanes({ events, insights, startTime, endTime, activeFilters,
               signalType={i.content?.signal_type}
               style={{ left: `${getPosition(i.timestamp)}%` }}
               onClick={() => onSelectEvent?.(i)}
+            />
+          ))}
+        </SwimLane>
+      )}
+
+      {activeFilters.includes('reasoning') && (
+        <SwimLane label="Reasoning" color="#22d3ee">
+          {reasoningInsights.map((insight, i) => (
+            <EventMarker
+              key={insight.id || i}
+              type="signal"
+              color="#22d3ee"
+              style={{ left: `${getPosition(insight.timestamp)}%` }}
+              onClick={() => onSelectEvent?.(insight)}
             />
           ))}
         </SwimLane>

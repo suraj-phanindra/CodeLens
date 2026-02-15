@@ -1,4 +1,6 @@
-import { storePdfBuffer } from '@/lib/agents/architect';
+import { storeFileBuffer } from '@/lib/agents/architect';
+
+const ALLOWED_EXTENSIONS = ['.pdf', '.docx', '.txt', '.md'];
 
 export async function POST(req: Request) {
   try {
@@ -9,15 +11,19 @@ export async function POST(req: Request) {
       return Response.json({ error: 'No file provided' }, { status: 400 });
     }
 
-    if (!file.name.endsWith('.pdf')) {
-      return Response.json({ error: 'Only PDF files are accepted' }, { status: 400 });
+    const ext = '.' + file.name.split('.').pop()?.toLowerCase();
+    if (!ALLOWED_EXTENSIONS.includes(ext)) {
+      return Response.json(
+        { error: `Unsupported file type. Accepted: ${ALLOWED_EXTENSIONS.join(', ')}` },
+        { status: 400 }
+      );
     }
 
     const buffer = Buffer.from(await file.arrayBuffer());
     const fileId = crypto.randomUUID();
 
     // Store buffer in memory for later extraction
-    storePdfBuffer(fileId, buffer);
+    storeFileBuffer(fileId, buffer, file.name);
 
     return Response.json({
       file_id: fileId,

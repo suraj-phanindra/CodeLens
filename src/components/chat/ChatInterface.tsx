@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, useRef, useEffect, useCallback } from 'react';
-import { Send, Paperclip, Loader2 } from 'lucide-react';
+import { Send, Loader2 } from 'lucide-react';
 import { MessageBubble } from './MessageBubble';
 import { ToolResultCard } from './ToolResultCard';
 import { FileUpload } from './FileUpload';
@@ -18,8 +18,9 @@ export function ChatInterface() {
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [input, setInput] = useState('');
   const [isStreaming, setIsStreaming] = useState(false);
-  const [showFileUpload, setShowFileUpload] = useState(false);
+  const [isFileUploading, setIsFileUploading] = useState(false);
   const [uploadedFiles, setUploadedFiles] = useState<any[]>([]);
+  const [showSuggestions, setShowSuggestions] = useState(true);
   const [setupId] = useState(() => crypto.randomUUID());
   const scrollRef = useRef<HTMLDivElement>(null);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
@@ -41,30 +42,30 @@ export function ChatInterface() {
 
   const handleFileUploaded = useCallback((file: any) => {
     setUploadedFiles(prev => [...prev, file]);
-    // Add a message about the upload
-    const fileLabel = file.type === 'job_description' ? 'Job Description' : 'Resume';
-    setMessages(prev => [...prev, {
-      id: crypto.randomUUID(),
-      role: 'user',
-      content: `[Uploaded ${fileLabel}: ${file.name}]`,
-      metadata: { file_id: file.id, file_type: file.type },
-    }]);
-    setShowFileUpload(false);
   }, []);
 
-  const sendMessage = useCallback(async () => {
-    const trimmed = input.trim();
-    if (!trimmed || isStreaming) return;
+  const handleFileRemoved = useCallback((fileId: string) => {
+    setUploadedFiles(prev => prev.filter(f => f.id !== fileId));
+  }, []);
+
+  const sendMessage = useCallback(async (overrideMessage?: string) => {
+    const trimmed = (overrideMessage ?? input).trim();
+    if ((!trimmed && uploadedFiles.length === 0) || isStreaming) return;
+
+    // If no text but files exist, generate a synthetic message
+    const messageText = trimmed || `I've uploaded: ${uploadedFiles.map(f => f.name).join(', ')}. Please process them.`;
+
+    setShowSuggestions(false);
 
     const userMessage: ChatMessage = {
       id: crypto.randomUUID(),
       role: 'user',
-      content: trimmed,
+      content: messageText,
     };
 
     const newMessages = [...messages, userMessage];
     setMessages(newMessages);
-    setInput('');
+    if (!overrideMessage) setInput('');
     setIsStreaming(true);
 
     // Prepare messages for API (only user + assistant + tool messages)
@@ -78,7 +79,11 @@ export function ChatInterface() {
       const response = await fetch('/api/chat', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ messages: apiMessages, setupId }),
+        body: JSON.stringify({
+          messages: apiMessages,
+          setupId,
+          uploadedFiles: uploadedFiles.map(f => ({ id: f.id, name: f.name, type: f.type })),
+        }),
       });
 
       if (!response.ok) throw new Error('Failed to connect');
@@ -113,15 +118,18 @@ export function ChatInterface() {
             switch (event.type) {
               case 'text':
                 assistantContent += event.content;
-                setMessages(prev =>
-                  prev.map(m => m.id === assistantId ? { ...m, content: assistantContent } : m)
-                );
+                setMessages(prev => {
+                  const exists = prev.some(m => m.id === assistantId);
+                  if (exists) {
+                    return prev.map(m => m.id === assistantId ? { ...m, content: assistantContent } : m);
+                  }
+                  return [...prev, { id: assistantId, role: 'assistant', content: assistantContent }];
+                });
                 break;
 
               case 'tool_use':
-                // Add tool_use message
                 setMessages(prev => [...prev, {
-                  id: crypto.randomUUID(),
+                  id: `tu-${event.tool_use_id}`,
                   role: 'tool_use',
                   content: JSON.stringify(event.input),
                   metadata: { tool_name: event.tool, tool_use_id: event.tool_use_id },
@@ -129,22 +137,20 @@ export function ChatInterface() {
                 break;
 
               case 'tool_result':
-                // Add tool_result message
                 setMessages(prev => [...prev, {
-                  id: crypto.randomUUID(),
+                  id: `tr-${event.tool_use_id}`,
                   role: 'tool_result',
                   content: event.result,
                   metadata: { tool_name: event.tool, tool_use_id: event.tool_use_id },
                 }]);
-                // Reset assistant content for new response after tool
+                // Reset for next assistant response (placeholder created on first text event)
                 assistantContent = '';
                 assistantId = crypto.randomUUID();
-                setMessages(prev => [...prev, { id: assistantId, role: 'assistant', content: '' }]);
                 break;
 
               case 'error':
                 setMessages(prev => [...prev, {
-                  id: crypto.randomUUID(),
+                  id: `err-${crypto.randomUUID()}`,
                   role: 'assistant',
                   content: `Error: ${event.message}`,
                 }]);
@@ -167,7 +173,7 @@ export function ChatInterface() {
     } finally {
       setIsStreaming(false);
     }
-  }, [input, messages, isStreaming, setupId]);
+  }, [input, messages, isStreaming, setupId, uploadedFiles]);
 
   const handleKeyDown = useCallback((e: React.KeyboardEvent) => {
     if (e.key === 'Enter' && !e.shiftKey) {
@@ -180,35 +186,53 @@ export function ChatInterface() {
     <div className="flex flex-col h-full bg-[#09090b]">
       {/* Messages area */}
       <div ref={scrollRef} className="flex-1 overflow-y-auto px-4 py-6">
-        {messages.length === 0 && (
+        {messages.length === 0 && showSuggestions && (
           <div className="flex flex-col items-center justify-center h-full text-center">
             <div className="w-12 h-12 rounded-xl bg-gradient-to-br from-[#3b82f6] to-[#a78bfa] flex items-center justify-center mb-4">
               <span className="text-white text-lg font-bold">{'\u25B8'}</span>
             </div>
             <h2 className="text-xl font-semibold text-[#fafafa] mb-2">Interview Architect</h2>
             <p className="text-[#71717a] text-sm max-w-md">
-              I&apos;ll help you set up a customized coding interview. Upload a job description, share SDK docs, and I&apos;ll generate a tailored challenge with a custom evaluation rubric.
+              Welcome to Atrium. I&apos;ll help you set up a custom technical interview. To get started, tell me about the role you&apos;re hiring for, or upload a job description and I&apos;ll take it from there.
             </p>
+            <div className="flex flex-wrap gap-2 mt-6">
+              {[
+                'Set up a technical interview',
+                'I have a JD and resume ready',
+                'Quick interview setup',
+              ].map((suggestion) => (
+                <button
+                  key={suggestion}
+                  onClick={() => sendMessage(suggestion)}
+                  className="px-4 py-2 text-sm rounded-full border border-[#27272a] bg-[#111114] text-[#a1a1aa] hover:bg-[#18181b] hover:text-[#fafafa] hover:border-[#3b82f6]/50 transition-all"
+                >
+                  {suggestion}
+                </button>
+              ))}
+            </div>
           </div>
         )}
 
         <div className="max-w-3xl mx-auto">
-          {messages.map((msg) => {
+          {messages.map((msg, index) => {
             if (msg.role === 'tool_result') {
               return (
                 <ToolResultCard
-                  key={msg.id}
+                  key={`${msg.id}-${index}`}
                   toolName={msg.metadata?.tool_name || ''}
                   result={msg.content}
                 />
               );
             }
             if (msg.role === 'tool_use') {
-              return null; // Tool use is shown via tool_result
+              return null;
+            }
+            if (msg.role === 'assistant' && !msg.content) {
+              return null;
             }
             return (
               <MessageBubble
-                key={msg.id}
+                key={`${msg.id}-${index}`}
                 role={msg.role as 'user' | 'assistant'}
                 content={msg.content}
                 isStreaming={isStreaming && msg === messages[messages.length - 1] && msg.role === 'assistant'}
@@ -218,77 +242,56 @@ export function ChatInterface() {
         </div>
       </div>
 
-      {/* File upload area */}
-      {showFileUpload && (
-        <div className="px-4 pb-2 max-w-3xl mx-auto w-full">
-          <div className="grid grid-cols-2 gap-3">
-            <FileUpload
-              documentType="job_description"
-              label="Drop Job Description PDF"
-              onFileUploaded={handleFileUploaded}
-            />
-            <FileUpload
-              documentType="resume"
-              label="Drop Resume PDF"
-              onFileUploaded={handleFileUploaded}
-            />
-          </div>
-        </div>
-      )}
-
-      {/* Uploaded files badges */}
-      {uploadedFiles.length > 0 && (
-        <div className="px-4 pb-2 max-w-3xl mx-auto w-full flex gap-2 flex-wrap">
-          {uploadedFiles.map(f => (
-            <span key={f.id} className="text-[10px] px-2 py-1 rounded-md bg-[#18181b] border border-[#27272a] text-[#a1a1aa]">
-              {f.type === 'job_description' ? 'JD' : 'Resume'}: {f.name}
-            </span>
-          ))}
-        </div>
-      )}
-
       {/* Input area */}
       <div className="border-t border-[#1e1e22] px-4 py-3">
-        <div className="max-w-3xl mx-auto flex items-end gap-2">
-          <button
-            onClick={() => setShowFileUpload(!showFileUpload)}
-            className={cn(
-              'p-2 rounded-lg transition-colors',
-              showFileUpload ? 'bg-[#3b82f6]/20 text-[#3b82f6]' : 'text-[#71717a] hover:text-[#a1a1aa] hover:bg-[#18181b]'
-            )}
-          >
-            <Paperclip className="w-4 h-4" />
-          </button>
+        <div className="max-w-3xl mx-auto">
+          {/* Uploaded file chips */}
+          {uploadedFiles.length > 0 && (
+            <div className="flex gap-2 flex-wrap mb-2">
+              {uploadedFiles.map(f => (
+                <span key={f.id} className="inline-flex items-center gap-1.5 text-xs px-2.5 py-1 rounded-full bg-[#18181b] border border-[#27272a] text-[#a1a1aa]">
+                  <span className="w-1.5 h-1.5 rounded-full bg-[#3b82f6]" />
+                  {f.type === 'job_description' ? 'JD' : f.type === 'resume' ? 'Resume' : 'Doc'}: {f.name}
+                  <button onClick={() => handleFileRemoved(f.id)} className="ml-1 text-[#71717a] hover:text-[#fafafa]">&times;</button>
+                </span>
+              ))}
+            </div>
+          )}
 
-          <div className="flex-1 relative">
-            <textarea
-              ref={textareaRef}
-              value={input}
-              onChange={(e) => setInput(e.target.value)}
-              onKeyDown={handleKeyDown}
-              placeholder="Describe the role, or upload files to get started..."
-              rows={1}
-              className="w-full resize-none rounded-xl bg-[#111114] border border-[#27272a] px-4 py-3 text-sm text-[#fafafa] placeholder:text-[#71717a] focus:outline-none focus:border-[#3b82f6]/50 transition-colors"
-              disabled={isStreaming}
-            />
+          <div className="flex items-end gap-2">
+            {/* Inline file upload */}
+            <FileUpload onFileUploaded={handleFileUploaded} onUploadingChange={setIsFileUploading} />
+
+            <div className="flex-1 relative">
+              <textarea
+                ref={textareaRef}
+                value={input}
+                onChange={(e) => setInput(e.target.value)}
+                onKeyDown={handleKeyDown}
+                placeholder="Describe the role, or upload files to get started..."
+                rows={1}
+                className="w-full resize-none rounded-xl bg-[#111114] border border-[#27272a] px-4 py-3 text-sm text-[#fafafa] placeholder:text-[#71717a] focus:outline-none focus:border-[#3b82f6]/50 transition-colors"
+                disabled={isStreaming}
+              />
+            </div>
+
+            <button
+              onClick={() => sendMessage()}
+              disabled={(!input.trim() && uploadedFiles.length === 0) || isStreaming || isFileUploading}
+              className={cn(
+                'p-2 rounded-lg transition-all',
+                (input.trim() || uploadedFiles.length > 0) && !isStreaming && !isFileUploading
+                  ? 'bg-[#3b82f6] text-white hover:bg-[#3b82f6]/90'
+                  : 'bg-[#18181b] text-[#71717a] cursor-not-allowed'
+              )}
+            >
+              {isStreaming ? (
+                <Loader2 className="w-4 h-4 animate-spin" />
+              ) : (
+                <Send className="w-4 h-4" />
+              )}
+            </button>
           </div>
-
-          <button
-            onClick={sendMessage}
-            disabled={!input.trim() || isStreaming}
-            className={cn(
-              'p-2 rounded-lg transition-all',
-              input.trim() && !isStreaming
-                ? 'bg-[#3b82f6] text-white hover:bg-[#3b82f6]/90'
-                : 'bg-[#18181b] text-[#71717a] cursor-not-allowed'
-            )}
-          >
-            {isStreaming ? (
-              <Loader2 className="w-4 h-4 animate-spin" />
-            ) : (
-              <Send className="w-4 h-4" />
-            )}
-          </button>
         </div>
       </div>
     </div>
