@@ -102,17 +102,24 @@ export async function POST(req: Request) {
       metadata: { command: runCommand, exit_code: result.exitCode },
     });
 
-    // Run tests if available
+    // Run tests if available and test files actually exist
     let testOutput = '';
-    let testsPassed = false;
+    let testsPassed = true;
     const testCmd = detectTestCommand(challengeFiles);
-    if (testCmd) {
-      try {
-        const testResult = await sandbox.commands.run(testCmd, { timeoutMs: 30000 });
-        testOutput = [testResult.stdout, testResult.stderr].filter(Boolean).join('\n');
-        testsPassed = testResult.exitCode === 0;
-      } catch {
-        testOutput = 'Test execution timed out';
+    if (testCmd && sandbox) {
+      const checkResult = await sandbox.commands.run(
+        'ls /home/user/project/.codelens_tests/ 2>/dev/null | head -1',
+        { timeoutMs: 5000 }
+      );
+      if (checkResult.stdout?.trim()) {
+        try {
+          const testResult = await sandbox.commands.run(testCmd, { timeoutMs: 30000 });
+          testOutput = [testResult.stdout, testResult.stderr].filter(Boolean).join('\n');
+          testsPassed = testResult.exitCode === 0;
+        } catch {
+          testOutput = 'Test execution timed out';
+          testsPassed = false;
+        }
       }
     }
 

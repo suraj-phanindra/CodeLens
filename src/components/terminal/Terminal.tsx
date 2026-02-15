@@ -38,10 +38,9 @@ export default function TerminalComponent({ sessionId }: TerminalProps) {
       term.loadAddon(fitAddon);
       term.open(termRef.current);
 
-      // Initial fit + clear to start clean
+      // Initial fit
       requestAnimationFrame(() => {
         fitAddon.fit();
-        term.clear();
         setTimeout(() => { try { fitAddon.fit(); } catch {} }, 100);
       });
 
@@ -59,16 +58,7 @@ export default function TerminalComponent({ sessionId }: TerminalProps) {
           term.write(payload.data);
         });
 
-      // Subscribe and trigger fresh prompt once connected
-      channel.subscribe(async (status) => {
-        if (status === 'SUBSCRIBED') {
-          await fetch('/api/sandbox/input', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ session_id: sessionId, data: '\n' }),
-          });
-        }
-      });
+      channel.subscribe();
 
       // Send keystrokes to sandbox
       term.onData(async (data) => {

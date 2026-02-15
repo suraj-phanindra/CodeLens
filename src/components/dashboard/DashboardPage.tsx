@@ -68,23 +68,26 @@ export function DashboardPage({ session }: DashboardPageProps) {
     await fetch(`/api/sessions/${session.id}/end`, { method: 'POST' });
   };
 
-  const handleExportReport = () => {
-    const report = {
-      session: { id: session.id, candidate: candidateName, challenge: challengeTitle, status: session.status },
-      stats,
-      signals: signals.map(s => s.content),
-      reasoning: reasoningUpdates.map(r => r.content),
-      copilotQuestions: copilotQuestions.map(q => q.content),
-      summary: summary?.content || null,
-      exportedAt: new Date().toISOString(),
-    };
-    const blob = new Blob([JSON.stringify(report, null, 2)], { type: 'application/json' });
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement('a');
-    a.href = url;
-    a.download = `atrium-report-${session.id.slice(0, 8)}.json`;
-    a.click();
-    URL.revokeObjectURL(url);
+  const handleExportReport = async () => {
+    const { exportSessionPdf } = await import('@/lib/exportPdf');
+    exportSessionPdf({
+      challengeTitle,
+      candidateName,
+      duration: elapsed,
+      sessionDate: session.started_at
+        ? new Date(session.started_at).toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' })
+        : new Date().toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' }),
+      summary: summary?.content || {
+        overall_score: 0,
+        hiring_signal: 'pending',
+        one_line_summary: 'Session still in progress',
+        rubric_scores: [],
+        strengths: [],
+        concerns: [],
+        recommended_follow_ups: [],
+      },
+      signalCounts: stats.signals,
+    });
   };
 
   const isLive = session.status === 'active';

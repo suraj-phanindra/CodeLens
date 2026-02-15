@@ -39,13 +39,19 @@ export async function POST(req: Request) {
       }
 
       if (testCmd) {
-        try {
-          const result = await sandbox.commands.run(testCmd, { timeoutMs: 30000 });
-          testOutput = [result.stdout, result.stderr].filter(Boolean).join('\n');
-          testsPassed = result.exitCode === 0;
-        } catch {
-          testOutput = 'Test execution timed out';
-          testsPassed = false;
+        const checkResult = await sandbox.commands.run(
+          'ls /home/user/project/.codelens_tests/ 2>/dev/null | head -1',
+          { timeoutMs: 5000 }
+        );
+        if (checkResult.stdout?.trim()) {
+          try {
+            const result = await sandbox.commands.run(testCmd, { timeoutMs: 30000 });
+            testOutput = [result.stdout, result.stderr].filter(Boolean).join('\n');
+            testsPassed = result.exitCode === 0;
+          } catch {
+            testOutput = 'Test execution timed out';
+            testsPassed = false;
+          }
         }
       }
     }
