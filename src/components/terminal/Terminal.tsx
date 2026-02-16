@@ -38,6 +38,8 @@ export default function TerminalComponent({ sessionId }: TerminalProps) {
       term.loadAddon(fitAddon);
       term.open(termRef.current);
 
+      const supabase = createClient();
+
       // Sync terminal size with server PTY
       const syncSize = async () => {
         try {
@@ -46,7 +48,7 @@ export default function TerminalComponent({ sessionId }: TerminalProps) {
         const cols = term.cols;
         const rows = term.rows;
         if (cols && rows) {
-          fetch('/api/sandbox/resize', {
+          await fetch('/api/sandbox/resize', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ session_id: sessionId, cols, rows }),
@@ -54,8 +56,16 @@ export default function TerminalComponent({ sessionId }: TerminalProps) {
         }
       };
 
-      // Subscribe to terminal output from sandbox
-      const supabase = createClient();
+      // 1. Fit + resize PTY BEFORE subscribing to broadcast.
+      //    This triggers SIGWINCH in bash which redraws the prompt.
+      //    Since we're not subscribed yet, that noise is discarded
+      //    (Supabase broadcast doesn't replay).
+      await new Promise<void>(resolve => requestAnimationFrame(() => resolve()));
+      await syncSize();
+      // Let SIGWINCH output flush through broadcast (we miss it — intentional)
+      await new Promise(r => setTimeout(r, 400));
+
+      // 2. NOW subscribe — from this point we only see fresh data
       const channel = supabase
         .channel(`terminal:${sessionId}`)
         .on('broadcast', { event: 'terminal_data' }, ({ payload }) => {
@@ -68,17 +78,12 @@ export default function TerminalComponent({ sessionId }: TerminalProps) {
         });
       });
 
-      // Initial fit + resize PTY to match, then nudge shell to redraw prompt
-      requestAnimationFrame(() => {
-        syncSize().then(() => {
-          // Send empty input to trigger prompt redraw after resize
-          fetch('/api/sandbox/input', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ session_id: sessionId, data: '' }),
-          }).catch(() => {});
-        });
-      });
+      // 3. Ctrl+L: bash clears screen and draws exactly one prompt
+      await fetch('/api/sandbox/input', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ session_id: sessionId, data: '\f' }),
+      }).catch(() => {});
 
       // Refit + resize on container resize
       const ro = new ResizeObserver(() => syncSize());

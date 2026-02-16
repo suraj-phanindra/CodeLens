@@ -8,7 +8,7 @@ import os from 'os';
 const anthropic = new Anthropic();
 
 // File-based storage for uploaded buffers (survives across API route workers)
-const UPLOAD_DIR = path.join(os.tmpdir(), 'codelens-uploads');
+const UPLOAD_DIR = path.join(os.tmpdir(), 'atrium-uploads');
 
 function ensureUploadDir() {
   if (!fs.existsSync(UPLOAD_DIR)) {

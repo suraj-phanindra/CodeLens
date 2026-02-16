@@ -33,14 +33,14 @@ export async function POST(req: Request) {
       let testCmd: string | null = null;
 
       if (filenames.some((f: string) => f.endsWith('.py'))) {
-        testCmd = 'cd /home/user/project && python -m pytest .codelens_tests/ -v 2>&1';
+        testCmd = 'cd /home/user/project && python -m pytest .atrium_tests/ -v 2>&1';
       } else if (filenames.some((f: string) => f.match(/\.(ts|tsx|js|jsx)$/))) {
-        testCmd = 'cd /home/user/project && npx jest --roots .codelens_tests/ 2>&1';
+        testCmd = 'cd /home/user/project && npx jest --roots .atrium_tests/ 2>&1';
       }
 
       if (testCmd) {
         const checkResult = await sandbox.commands.run(
-          'ls /home/user/project/.codelens_tests/ 2>/dev/null | head -1',
+          'ls /home/user/project/.atrium_tests/ 2>/dev/null | head -1',
           { timeoutMs: 5000 }
         );
         if (checkResult.stdout?.trim()) {

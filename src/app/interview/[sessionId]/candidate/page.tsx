@@ -3,7 +3,7 @@
 import { useEffect, useState, useCallback, useRef } from 'react';
 import Image from 'next/image';
 import { useParams } from 'next/navigation';
-import { Clock, Loader2, Square, TerminalSquare, FileText, Play, Save, Send, CheckCircle } from 'lucide-react';
+import { Clock, Loader2, Square, TerminalSquare, FileText, Play, Save, Send, CheckCircle, ShieldX } from 'lucide-react';
 import { Allotment } from 'allotment';
 import { createClient } from '@/lib/supabase/client';
 import { cn } from '@/lib/utils';
@@ -196,6 +196,12 @@ export default function CandidatePage() {
         const data = await res.json();
         setSession(data);
 
+        if (data.status === 'completed') {
+          setSessionEnded(true);
+          setLoading(false);
+          return;
+        }
+
         if (data.status === 'pending') {
           const sandboxRes = await fetch('/api/sandbox/create', {
             method: 'POST',
@@ -326,6 +332,23 @@ export default function CandidatePage() {
     return (
       <div className="h-screen flex items-center justify-center bg-[#09090b]">
         <Loader2 className="w-8 h-8 text-[#3b82f6] animate-spin" />
+      </div>
+    );
+  }
+
+  // Block access to completed sessions — interviewer can still view the dashboard
+  if (sessionEnded && !sandboxReady) {
+    return (
+      <div className="h-screen flex items-center justify-center bg-[#09090b]">
+        <div className="text-center max-w-md">
+          <div className="w-16 h-16 rounded-full bg-[#71717a]/20 flex items-center justify-center mx-auto mb-4">
+            <ShieldX className="w-7 h-7 text-[#71717a]" />
+          </div>
+          <h2 className="text-xl font-semibold text-[#fafafa] mb-2">Session Closed</h2>
+          <p className="text-[#a1a1aa] text-sm">
+            This interview session has been submitted and is no longer accessible. The interviewer can review your work on the dashboard.
+          </p>
+        </div>
       </div>
     );
   }

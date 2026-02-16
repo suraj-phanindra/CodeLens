@@ -4,8 +4,17 @@ import { supabaseAdmin } from '@/lib/supabase/server';
 export async function startActivityCapture(sandbox: Sandbox, sessionId: string) {
   const supabase = supabaseAdmin();
 
+  // Deduplicate file_change events: max 1 per file per 2 minutes
+  const fileEventThrottle = new Map<string, number>();
+  const FILE_EVENT_COOLDOWN_MS = 120_000;
+
   // File watcher
   const watcher = await sandbox.files.watchDir('/home/user/project', async (event) => {
+    const now = Date.now();
+    const lastEmit = fileEventThrottle.get(event.name) || 0;
+    if (now - lastEmit < FILE_EVENT_COOLDOWN_MS) return;
+    fileEventThrottle.set(event.name, now);
+
     await supabase.from('events').insert({
       session_id: sessionId,
       event_type: 'file_change',

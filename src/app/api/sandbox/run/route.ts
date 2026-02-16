@@ -5,10 +5,10 @@ import { supabaseAdmin } from '@/lib/supabase/server';
 function detectTestCommand(generatedFiles: Record<string, string>): string | null {
   const filenames = Object.keys(generatedFiles);
   if (filenames.some(f => f.endsWith('.py'))) {
-    return 'cd /home/user/project && python -m pytest .codelens_tests/ -v 2>&1';
+    return 'cd /home/user/project && python -m pytest .atrium_tests/ -v 2>&1';
   }
   if (filenames.some(f => f.match(/\.(ts|tsx|js|jsx)$/))) {
-    return 'cd /home/user/project && npx jest --roots .codelens_tests/ 2>&1';
+    return 'cd /home/user/project && npx jest --roots .atrium_tests/ 2>&1';
   }
   return null;
 }
@@ -108,7 +108,7 @@ export async function POST(req: Request) {
     const testCmd = detectTestCommand(challengeFiles);
     if (testCmd && sandbox) {
       const checkResult = await sandbox.commands.run(
-        'ls /home/user/project/.codelens_tests/ 2>/dev/null | head -1',
+        'ls /home/user/project/.atrium_tests/ 2>/dev/null | head -1',
         { timeoutMs: 5000 }
       );
       if (checkResult.stdout?.trim()) {

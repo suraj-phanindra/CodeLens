@@ -9,7 +9,7 @@ const TEST_FILE_PATTERNS = [
   /\.spec\./,         // main.spec.ts
   /^tests\//,         // tests/ directory
   /^__tests__\//,     // __tests__/ directory
-  /^\.codelens/,      // internal config
+  /^\.atrium/,      // internal config
   /conftest\.py$/,    // pytest fixtures
   /jest\.config/,     // jest config
   /pytest\.ini$/,     // pytest config
