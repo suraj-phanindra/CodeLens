@@ -1,36 +1,13 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+# Atrium
 
-## Getting Started
+**See how they think.**
 
-First, run the development server:
+Atrium is an AI-powered technical interview platform that replaces LeetCode with paid, real-world challenges. Interviewers set up custom interviews by chatting with an Opus 4.6 agent — uploading a job description, candidate resume, and their SDK documentation. The AI generates a tailored coding challenge and builds a custom evaluation rubric.
 
-```bash
-npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
-```
+During the session, candidates work in a cloud sandbox (E2B) with Claude Code. Three Opus 4.6 agents work together: an Interview Architect that designs the challenge through conversation, a Session Observer that evaluates the candidate's reasoning patterns against the custom rubric in real-time, and an Interviewer Copilot that suggests follow-up questions based on the interviewer's stated priorities.
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+The interviewer's dashboard shows a live swim-lane timeline of the candidate's activity — AI prompts, file changes, terminal commands, reasoning signals — with an AI-generated evaluation scored against their custom rubric.
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+**Live:** [atrium.fly.dev](https://atrium.fly.dev/)
 
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
-
-## Learn More
-
-To learn more about Next.js, take a look at the following resources:
-
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
-
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
-
-## Deploy on Vercel
-
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
-
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+**Built for the "Built with Opus 4.6" Claude Code Hackathon (Feb 2026).**
